@@ -1,3 +1,10 @@
+# Stan executables and .hpp
+/stan/*
+!/stan/*.stan
+
+# emacs tmp files
+*~
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
