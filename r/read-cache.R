@@ -45,3 +45,7 @@ data = jsonlite::fromJSON('../cache/model_07_data.json')
 
 optimum_07 = cmdstanr::as_cmdstan_fit('../cache/07-skip-connections.csv')
 
+cat(paste(decode(as.numeric(optimum_07$draws('new_tokens'))), collapse=""))
+
+
+
