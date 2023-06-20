@@ -2,6 +2,7 @@ data {
   int<lower = 1> vocab_size;           // e.g. 65
   int<lower = 1> batch_size;           // e.g. 32
   int<lower = 1> block_size;           // e.g. 8
+  
   array[batch_size, block_size] int<lower = 1, upper = vocab_size> xb;
   array[batch_size, block_size] int<lower = 1, upper = vocab_size> yb;
 
@@ -11,7 +12,7 @@ data {
   int<lower = 0> max_new_tokens;
 }
 parameters {
-  array[vocab_size] vector[vocab_size] token_embedding;
+  array[vocab_size] vector[vocab_size] token_embedding;   // 01 - new parameter
 }
 transformed parameters {
   real loss = 0;
