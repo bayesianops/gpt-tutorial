@@ -36,7 +36,7 @@ data_train = data_full[:n]
 data_val = data_full[n:]
 
 
-model_07 = CmdStanModel(stan_file=os.path.join('..', 'stan', '07-skip-connections.stan'))    
+model_07 = CmdStanModel(stan_file=os.path.join('..', 'stan', '07-skip-connections.stan'))
 
 with open('../cache/model_07_data.json', 'r') as f:
     data = json.load(f)
