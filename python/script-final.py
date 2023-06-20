@@ -701,3 +701,46 @@ gq_12 = model_12.generate_quantities(data=data, previous_fit=optimum_12)
 print(decode(gq_12.stan_variable('new_tokens')[0]))
 
 
+
+
+## Try something bigger, staying under 16 GB ram on my laptop
+vocab_size = len(set(text))
+batch_size = 16 # how many independent sequences will we process in parallel?
+block_size = 64 # what is the maximum context length for predictions?
+n_embed = 128
+n_head = 4
+n_layer = 4
+dropout = 0.2
+
+data = {
+    'vocab_size': vocab_size,
+    'batch_size': batch_size,
+    'block_size': block_size,
+    'n_embed': n_embed,
+    'n_head': n_head,
+    'n_layer': n_layer,
+    'dropout': dropout,
+    'xb': xb,
+    'yb': yb,
+    'xb_val': xb_val,
+    'yb_val': yb_val,
+    'max_new_tokens': 500
+}
+
+optimum_12 = model_12.optimize(data=data, show_console=True, iter=1, init_alpha=0.0001, algorithm="LBFGS", inits=0.1)
+for step in range(1000):
+    print("step = ", step)
+    xb, yb = get_data_batch(data_train, batch_size, block_size)
+    xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+    data['xb'] = xb
+    data['yb'] = yb
+    data['xb_val'] = xb_val
+    data['yb_val'] = yb_val
+    optimum_12 = model_12.optimize(data = data, show_console=(step % 100 == 0),
+                                   iter=1, init_alpha=0.0001, algorithm="LBFGS",
+                                   inits=optimum_12.stan_variables())
+
+print(optimum_12.stan_variable('loss'))
+print(optimum_12.stan_variable('loss_validation'))
+
+print(decode(optimum_12.stan_variable('new_tokens')))
