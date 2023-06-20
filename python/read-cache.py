@@ -41,10 +41,19 @@ model_07 = CmdStanModel(stan_file=os.path.join('..', 'stan', '07-skip-connection
 with open('../cache/model_07_data.json', 'r') as f:
     data = json.load(f)
 
-optimum_07 = cmdstanpy.from_csv('../cache/07-skip-connections-20230620011116.csv')
+optimum_07 = cmdstanpy.from_csv('../cache/07-skip-connections.csv')
+
+print("Cached tokens")
+print("************************************************************")
 print(decode(optimum_07.stan_variable('new_tokens')))
+print("************************************************************")
+
 
 gq_07 = model_07.generate_quantities(data=data, previous_fit=optimum_07)
+
+print("Newly generated tokens")
+print("************************************************************")
 print(decode(gq_07.stan_variable('new_tokens')[0]))
+print("************************************************************")
 
 
