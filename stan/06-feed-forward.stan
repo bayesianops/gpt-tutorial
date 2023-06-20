@@ -117,11 +117,11 @@ transformed parameters {
     }
   }
 
-  x = multi_headed_self_attention(x, key, query, value);
+  x = multi_head_self_attention(x, key, query, value);
 
   for (b in 1:batch_size) {
     for (t in 1:block_size) {
-      x[b, t] = ReLU(feed_forward_multiplier * x_self_attention[b, t] + feed_forward_offset);
+      x[b, t] = ReLU(feed_forward_multiplier * x[b, t] + feed_forward_offset);
     }
   }
 
@@ -146,15 +146,17 @@ generated quantities {
 	x_val[b, t] = token_embedding[xb_val[b, t]] + position_embedding[t];
       }
     }
-    array[batch_size, block_size] vector[head_size] x_val_self_attention;
-    x_val_self_attention = multi_headed_self_attention(x_val, key, query, value);
+    x_val = multi_head_self_attention(x_val, key, query, value);
+
+    for (b in 1:batch_size) {
+      for (t in 1:block_size) {
+	x_val[b, t] = ReLU(feed_forward_multiplier * x_val[b, t] + feed_forward_offset);
+      }
+    }
     
     for (b in 1:batch_size) {
       for (t in 1:block_size) {
-	vector[vocab_size] logits;
-	vector[n_embed] x_ = ReLU(feed_forward_multiplier * x_val_self_attention[b, t] + feed_forward_offset);
-	logits = lm_head(x_,
-			 lm_head_multiplier, lm_head_offset);
+	vector[vocab_size] logits = lm_head(x_val[b, t], lm_head_multiplier, lm_head_offset);
 	loss_validation += categorical_logit_lpmf(yb_val[b, t] | logits);
       }
     }
@@ -164,31 +166,23 @@ generated quantities {
   print("train loss ", -loss, ", val loss ", -loss_validation);
   print("************************************************************");
 
-  
+
   array[max_new_tokens] int<lower = 1, upper = vocab_size> new_tokens;
   new_tokens[1] = 1;
   {
-    array[block_size, 1] vector[n_embed] x_new = rep_array(rep_vector(0, n_embed), block_size, 1);
-    array[block_size, 1] vector[head_size] x_new_self_attention;
+    array[1, block_size] vector[n_embed] x_new;
 
-    for (n in 2:(block_size + 1)) {
-      x_new[n - 1, 1] = token_embedding[new_tokens[n - 1]] + position_embedding[n - 1];
-      x_new_self_attention = multi_headed_self_attention(x_new, key, query, value);
-
-      vector[n_embed] x_ = ReLU(feed_forward_multiplier * x_new_self_attention[n - 1, 1] + feed_forward_offset);
-      new_tokens[n] = categorical_logit_rng(lm_head(x_,
-						    lm_head_multiplier,
-						    lm_head_offset));
-    }
-    
-    for (n in block_size + 2:max_new_tokens) {
-      for (t in 1:block_size) {
-	x_new[t, 1] = token_embedding[new_tokens[(n - block_size - 1) + t]] + position_embedding[t];
+    for (n in 2:max_new_tokens) {
+      x_new = rep_array(rep_vector(0, n_embed), 1, block_size);
+      for (t in 1:min(n - 1, block_size)) {
+	x_new[1, t] = token_embedding[new_tokens[max(0, n - 1 - block_size) + t]] + position_embedding[t];
       }
-      x_new_self_attention = multi_headed_self_attention(x_new, key, query, value);
+      
+      x_new = multi_head_self_attention(x_new, key, query, value);
 
-      vector[n_embed] x_ = ReLU(feed_forward_multiplier * x_new_self_attention[block_size, 1] + feed_forward_offset);
-      new_tokens[n] = categorical_logit_rng(lm_head(x_,
+      int idx = min(n - 1, block_size);
+      x_new[1, idx] = ReLU(feed_forward_multiplier * x_new[1, idx] + feed_forward_offset);
+      new_tokens[n] = categorical_logit_rng(lm_head(x_new[1, idx],
 						    lm_head_multiplier,
 						    lm_head_offset));
     }

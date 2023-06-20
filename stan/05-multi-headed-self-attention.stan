@@ -102,14 +102,13 @@ transformed parameters {
       x[b, t] = token_embedding[xb[b, t]] + position_embedding[t];
     }
   }
-  
-  array[batch_size, block_size] vector[head_size] x_self_attention;
-  x_self_attention = multi_head_self_attention(x, key, query, value);
+
+  x = multi_head_self_attention(x, key, query, value);
   
   real loss = 0;
   for (b in 1:batch_size) {
     for (t in 1:block_size) {
-      vector[vocab_size] logits = lm_head(x_self_attention[b, t], lm_head_multiplier, lm_head_offset);
+      vector[vocab_size] logits = lm_head(x[b, t], lm_head_multiplier, lm_head_offset);
       loss += categorical_logit_lpmf(yb[b, t] | logits);
     }
   }
@@ -127,12 +126,11 @@ generated quantities {
 	x_val[b, t] = token_embedding[xb_val[b, t]] + position_embedding[t];
       }
     }
-    array[batch_size, block_size] vector[head_size] x_val_self_attention;
-    x_val_self_attention = multi_head_self_attention(x_val, key, query, value);
+    x_val = multi_head_self_attention(x_val, key, query, value);
     
     for (b in 1:batch_size) {
       for (t in 1:block_size) {
-	vector[vocab_size] logits = lm_head(x_val_self_attention[b, t], lm_head_multiplier, lm_head_offset);
+	vector[vocab_size] logits = lm_head(x_val[b, t], lm_head_multiplier, lm_head_offset);
 	loss_validation += categorical_logit_lpmf(yb_val[b, t] | logits);
       }
     }
