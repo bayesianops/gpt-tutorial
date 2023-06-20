@@ -216,9 +216,9 @@ transformed parameters {
 	      + feed_forward_proj_offset[layer]);
       }
     }
-
-    x = layer_norm(x, ln_f_weight, ln_f_bias);
   }
+  x = layer_norm(x, ln_f_weight, ln_f_bias);
+
   real loss = 0;
   for (b in 1:batch_size) {
     for (t in 1:block_size) {
@@ -265,9 +265,8 @@ generated quantities {
 		+ feed_forward_proj_offset[layer]);
 	}
       }
-
-      x_val = layer_norm(x_val, ln_f_weight, ln_f_bias);
     }
+    x_val = layer_norm(x_val, ln_f_weight, ln_f_bias);
   
     for (b in 1:batch_size) {
       for (t in 1:block_size) {
