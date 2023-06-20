@@ -51,6 +51,17 @@ xb = train$x
 yb = train$y
 
 val = get_data_batch(data_val, 10, 8)
-xb_val = train$x
-yb_val = train$y
+xb_val = val$x
+yb_val = val$y
 
+############################################################
+## 01: bigram model
+##     Only look at the last character to predict the next character.
+##     Look at how to compute loss
+##     Look at optimization
+
+model_01 = cmdstan_model("../stan/01-bigram.stan")
+
+data = list(
+    
+)
