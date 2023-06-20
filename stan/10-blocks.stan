@@ -107,6 +107,7 @@ data {
   int<lower = 1> block_size;           // e.g. 8
   int<lower = 1> n_embed;              // e.g. 32
   int<lower = 1> n_head;               // e.g. 2
+  int<lower = 1> n_layer;              // e.g. 2
 
   array[batch_size, block_size] int<lower = 1, upper = vocab_size> xb;
   array[batch_size, block_size] int<lower = 1, upper = vocab_size> yb;
@@ -127,22 +128,25 @@ parameters {
   array[block_size] vector[n_embed] position_embedding;     // 03 - new parameter
 
   // Multi-head self attention
-  array[n_head] matrix[n_embed, head_size] key;             // 05 - update for multi head
-  array[n_head] matrix[n_embed, head_size] query;           // 05 - update for multi head
-  array[n_head] matrix[n_embed, head_size] value;           // 05 - update for multi head
+  array[n_layer, n_head] matrix[n_embed, head_size] key;             // 09 - update for block
+  array[n_layer, n_head] matrix[n_embed, head_size] query;           // 09 - update for block
+  array[n_layer, n_head] matrix[n_embed, head_size] value;           // 09 - update for block
 
   // Feed forward
-  matrix[4 * n_embed, n_embed] feed_forward_multiplier;      // 07 - update for larger feed forward
-  vector[4 * n_embed] feed_forward_offset;                   // 07 - update for larger feed forward
+  array[n_layer] matrix[4 * n_embed, n_embed] feed_forward_multiplier;      // 09 - update for block
+  array[n_layer] vector[4 * n_embed] feed_forward_offset;                   // 09 - update for block
 
-  matrix[n_embed, 4 * n_embed] feed_forward_proj_multiplier; // 07 - new parameter
-  vector[n_embed] feed_forward_proj_offset;                  // 07 - new parameter
+  array[n_layer] matrix[n_embed, 4 * n_embed] feed_forward_proj_multiplier; // 09 - update for block
+  array[n_layer] vector[n_embed] feed_forward_proj_offset;                  // 09 - update for block
 
   // Layer norm
-  vector[n_embed] ln1_weight;                                // 08 - new parameter
-  vector[n_embed] ln1_bias;                                  // 08 - new parameter
-  vector[n_embed] ln2_weight;                                // 08 - new parameter
-  vector[n_embed] ln2_bias;                                  // 08 - new parameter  
+  array[n_layer] vector[n_embed] ln1_weight;                                // 09 - update for block
+  array[n_layer] vector[n_embed] ln1_bias;                                  // 09 - update for block
+  array[n_layer] vector[n_embed] ln2_weight;                                // 09 - update for block
+  array[n_layer] vector[n_embed] ln2_bias;                                  // 09 - update for block  
+
+  vector[n_embed] ln_f_weight;                             // 10 - new parameter
+  vector[n_embed] ln_f_bias;                               // 10 - new parameter
 }
 transformed parameters {
   array[batch_size, block_size] vector[n_embed] x;
@@ -151,24 +155,30 @@ transformed parameters {
       x[b, t] = token_embedding[xb[b, t]] + position_embedding[t];
     }
   }
-  array[batch_size, block_size] vector[n_embed] x_self_attention = multi_head_self_attention(layer_norm(x, ln1_weight, ln1_bias), key, query, value);
+
+  for (layer in 1:n_layer) {
+    array[batch_size, block_size] vector[n_embed] x_self_attention
+      = multi_head_self_attention(layer_norm(x, ln1_weight[layer], ln1_bias[layer]),
+				  key[layer], query[layer], value[layer]);
+    // 07 - skip connection
+    for (b in 1:batch_size) {
+      for (t in 1:block_size) {
+	x[b, t] += x_self_attention[b, t];
+      }
+    }
     
-  // 07 - skip connection
-  for (b in 1:batch_size) {
-    for (t in 1:block_size) {
-      x[b, t] += x_self_attention[b, t];
+    for (b in 1:batch_size) {
+      for (t in 1:block_size) {
+	// 07 - skip connection
+	x[b, t] += feed_forward_proj_multiplier[layer]
+	  * ReLU(feed_forward_multiplier[layer] * layer_norm(x[b, t], ln2_weight[layer], ln2_bias[layer])
+		 + feed_forward_offset[layer])
+	  + feed_forward_proj_offset[layer];
+      }
     }
-  }
 
-  for (b in 1:batch_size) {
-    for (t in 1:block_size) {
-      // 07 - skip connection
-      x[b, t] += feed_forward_proj_multiplier
-	* ReLU(feed_forward_multiplier * layer_norm(x[b, t], ln2_weight, ln2_bias) + feed_forward_offset)
-	+ feed_forward_proj_offset;
-    }
+    x = layer_norm(x, ln_f_weight, ln_f_bias);
   }
-
   real loss = 0;
   for (b in 1:batch_size) {
     for (t in 1:block_size) {
@@ -190,23 +200,31 @@ generated quantities {
 	x_val[b, t] = token_embedding[xb_val[b, t]] + position_embedding[t];
       }
     }
-    
-    array[batch_size, block_size] vector[n_embed] x_val_self_attention = multi_head_self_attention(layer_norm(x_val, ln1_weight, ln1_bias), key, query, value);
 
-    for (b in 1:batch_size) {
-      for (t in 1:block_size) {
-	x_val[b, t] += x_val_self_attention[b, t];
+    for (layer in 1:n_layer) {
+      array[batch_size, block_size] vector[n_embed] x_val_self_attention
+	= multi_head_self_attention(layer_norm(x_val, ln1_weight[layer], ln1_bias[layer]),
+				    key[layer], query[layer], value[layer]);
+      // 07 - skip connection
+      for (b in 1:batch_size) {
+	for (t in 1:block_size) {
+	  x_val[b, t] += x_val_self_attention[b, t];
+	}
       }
-    }
     
-    for (b in 1:batch_size) {
-      for (t in 1:block_size) {
-	x_val[b, t] += feed_forward_proj_multiplier
-	  * ReLU(feed_forward_multiplier * layer_norm(x_val[b, t], ln2_weight, ln2_bias) + feed_forward_offset)
-	  + feed_forward_proj_offset;
+      for (b in 1:batch_size) {
+	for (t in 1:block_size) {
+	  // 07 - skip connection
+	  x_val[b, t] += feed_forward_proj_multiplier[layer]
+	    * ReLU(feed_forward_multiplier[layer] * layer_norm(x_val[b, t], ln2_weight[layer], ln2_bias[layer])
+		   + feed_forward_offset[layer])
+	    + feed_forward_proj_offset[layer];
+	}
       }
-    }
 
+      x_val = layer_norm(x_val, ln_f_weight, ln_f_bias);
+    }
+  
     for (b in 1:batch_size) {
       for (t in 1:block_size) {
 	vector[vocab_size] logits = lm_head(x_val[b, t], lm_head_multiplier, lm_head_offset);
@@ -214,7 +232,6 @@ generated quantities {
       }
     }
     loss_validation /= batch_size * block_size;
-
   }
   print("************************************************************");
   print("train loss ", -loss, ", val loss ", -loss_validation);
@@ -233,17 +250,24 @@ generated quantities {
 	x_new[1, t] = token_embedding[new_tokens[max(0, n - 1 - block_size) + t]] + position_embedding[t];
       }
       
-      x_new_self_attention = multi_head_self_attention(layer_norm(x_new, ln1_weight, ln1_bias), key, query, value);
-      for (t in 1:min(n - 1, block_size)) {
-	x_new[1, t] += x_new_self_attention[1, t];
-      }
+      for (layer in 1:n_layer) {
+	x_new_self_attention
+	  = multi_head_self_attention(layer_norm(x_new, ln1_weight[layer], ln1_bias[layer]),
+				      key[layer], query[layer], value[layer]);
+	for (t in 1:min(n - 1, block_size)) {
+	  x_new[1, t] += x_new_self_attention[1, t];
+	}
 
-      int idx = min(n - 1, block_size);
-      x_new[1, idx] += feed_forward_proj_multiplier
-	* ReLU(feed_forward_multiplier * layer_norm(x_new[1, idx], ln2_weight, ln2_bias) + feed_forward_offset)
-	+ feed_forward_proj_offset;
-      
-      new_tokens[n] = categorical_logit_rng(lm_head(x_new[1, idx],
+	for (t in 1:min(n - 1, block_size)) {
+	  x_new[1, t] += feed_forward_proj_multiplier[layer]
+	    * ReLU(feed_forward_multiplier[layer] * layer_norm(x_new[1, t], ln2_weight[layer], ln2_bias[layer])
+		   + feed_forward_offset[layer])
+	    + feed_forward_proj_offset[layer];
+	}
+      }
+      x_new = layer_norm(x_new, ln_f_weight, ln_f_bias);
+
+      new_tokens[n] = categorical_logit_rng(lm_head(x_new[1, min(n - 1, block_size)],
 						    lm_head_multiplier,
 						    lm_head_offset));
     }

@@ -520,8 +520,8 @@ data = {
     'n_head': n_head,
     'xb': xb,
     'yb': yb,
-    'xb_val': xb,
-    'yb_val': yb,
+    'xb_val': xb_val,
+    'yb_val': yb_val,
     'max_new_tokens': 500
 }
 
@@ -545,5 +545,55 @@ print(decode(optimum_09.stan_variable('new_tokens')))
 
 gq_09 = model_09.generate_quantities(data=data, previous_fit=optimum_09)
 print(decode(gq_09.stan_variable('new_tokens')[0]))
+
+
+############################################################
+## 10: blocks
+model_10 = CmdStanModel(stan_file=os.path.join('..', 'stan', '10-blocks.stan'))
+
+vocab_size = len(set(text))   # total number of characters in the text
+batch_size = 32  # how many independent sequences will we process in parallel;  B
+block_size = 8   # what is the maximum context length for predictions?;         T
+n_embed = 32     # embedding size
+n_head = 2       # number of heads => head_size = n_embed / head_size
+n_layer = 2      # number of transformer blocks
+
+
+xb, yb = get_data_batch(data_train, batch_size, block_size)
+xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+data = {
+    'vocab_size': vocab_size,
+    'batch_size': batch_size,
+    'block_size': block_size,
+    'n_embed': n_embed,
+    'n_head': n_head,
+    'n_layer': n_layer,
+    'xb': xb,
+    'yb': yb,
+    'xb_val': xb_val,
+    'yb_val': yb_val,
+    'max_new_tokens': 500
+}
+
+optimum_10 = model_10.optimize(data=data, show_console=True, iter=1, init_alpha=0.0001, algorithm="LBFGS", inits=0.1)
+for step in range(1000):
+    print("step = ", step)
+    xb, yb = get_data_batch(data_train, batch_size, block_size)
+    xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+    data['xb'] = xb
+    data['yb'] = yb
+    data['xb_val'] = xb_val
+    data['yb_val'] = yb_val
+    optimum_10 = model_10.optimize(data = data, show_console=(step % 100 == 0),
+                                   iter=1, init_alpha=0.0001, algorithm="LBFGS",
+                                   inits=optimum_10.stan_variables())
+
+print(optimum_10.stan_variable('loss'))
+print(optimum_10.stan_variable('loss_validation'))
+
+print(decode(optimum_10.stan_variable('new_tokens')))
+
+gq_10 = model_10.generate_quantities(data=data, previous_fit=optimum_10)
+print(decode(gq_10.stan_variable('new_tokens')[0]))
 
 
