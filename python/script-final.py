@@ -17,7 +17,7 @@ def encoder_decoder_1_indexed(text):
 def get_data_batch(data, batch_size, block_size):
     idx = random.sample(range(0, len(data) - block_size), batch_size)
     x = [data[i:i+block_size] for i in idx]
-    y = [data[i+1:i+block_size+1] for i in idx]    
+    y = [data[i+1:i+block_size+1] for i in idx]
     return x, y
 
 
@@ -56,7 +56,7 @@ def print_batch_data_info(xb, yb, xb_val, yb_val):
     print("decode(xb[0]):         ", decode(xb[0]))
     print("decode(yb[0]):         ", decode(yb[0]))
     print("input xb_val.len:      ", len(xb_val), ", ", len(xb_val[0]))
-    print("target yb_val.len:     ", len(yb_val), ", ", len(yb_val[0]))    
+    print("target yb_val.len:     ", len(yb_val), ", ", len(yb_val[0]))
     print("decode(xb_val[0]):     ", decode(xb_val[0]))
     print("decode(yb_val[0]):     ", decode(yb_val[0]))
     print()
@@ -130,7 +130,7 @@ data = {
 ## Look at loss and loss_val
 optimum_01 = model_01.optimize(data=data, show_console=True, algorithm="LBFGS")
 print(optimum_01.stan_variable('loss'))
-print(optimum_01.stan_variable('loss_validation'))   
+print(optimum_01.stan_variable('loss_validation'))
 
 print(decode(optimum_01.stan_variable('new_tokens')))
 
@@ -154,7 +154,7 @@ for step in range(1000):
                                    inits=optimum_01.stan_variables())
 
 print(optimum_01.stan_variable('loss'))
-print(optimum_01.stan_variable('loss_validation'))   
+print(optimum_01.stan_variable('loss_validation'))
 
 print(decode(optimum_01.stan_variable('new_tokens')))
 
@@ -172,7 +172,7 @@ model_02 = CmdStanModel(stan_file=os.path.join('..', 'stan', '02-different-embed
 vocab_size = len(set(text))   # total number of characters in the text
 batch_size = 32  # how many independent sequences will we process in parallel;  B
 block_size = 8   # what is the maximum context length for predictions?;         T
-n_embed = 32     # embedding size                        
+n_embed = 32     # embedding size
 
 xb, yb = get_data_batch(data_train, batch_size, block_size)
 xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
@@ -203,8 +203,8 @@ for step in range(1000):
                                    inits=optimum_02.stan_variables())
 
 print(optimum_02.stan_variable('loss'))
-print(optimum_02.stan_variable('loss_validation'))   
-    
+print(optimum_02.stan_variable('loss_validation'))
+
 print(decode(optimum_02.stan_variable('new_tokens')))
 
 gq_02 = model_02.generate_quantities(data=data, previous_fit=optimum_02)
@@ -220,7 +220,7 @@ model_03 = CmdStanModel(stan_file=os.path.join('..', 'stan', '03-positional-enco
 vocab_size = len(set(text))   # total number of characters in the text
 batch_size = 32  # how many independent sequences will we process in parallel;  B
 block_size = 8   # what is the maximum context length for predictions?;         T
-n_embed = 32     # embedding size                        
+n_embed = 32     # embedding size
 
 xb, yb = get_data_batch(data_train, batch_size, block_size)
 xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
@@ -251,13 +251,13 @@ for step in range(1000):
                                    inits=optimum_03.stan_variables())
 
 print(optimum_03.stan_variable('loss'))
-print(optimum_03.stan_variable('loss_validation'))   
-    
+print(optimum_03.stan_variable('loss_validation'))
+
 print(decode(optimum_03.stan_variable('new_tokens')))
 
 gq_03 = model_03.generate_quantities(data=data, previous_fit=optimum_03)
 print(decode(gq_03.stan_variable('new_tokens')[0]))
-                        
+
 
 ############################################################
 ## 04: self-attention
@@ -268,7 +268,7 @@ vocab_size = len(set(text))   # total number of characters in the text
 batch_size = 32  # how many independent sequences will we process in parallel;  B
 block_size = 8   # what is the maximum context length for predictions?;         T
 n_embed = 32     # embedding size
-n_head = 32      # self attention head size
+# For self attention, head_size = embedding size
 
 xb, yb = get_data_batch(data_train, batch_size, block_size)
 xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
@@ -277,7 +277,6 @@ data = {
     'batch_size': batch_size,
     'block_size': block_size,
     'n_embed': n_embed,
-    'n_head': n_head,
     'xb': xb,
     'yb': yb,
     'xb_val': xb_val,
@@ -299,10 +298,109 @@ for step in range(1000):
                                    inits=optimum_04.stan_variables())
 
 print(optimum_04.stan_variable('loss'))
-print(optimum_04.stan_variable('loss_validation'))   
-    
+print(optimum_04.stan_variable('loss_validation'))
+
 print(decode(optimum_04.stan_variable('new_tokens')))
 
 gq_04 = model_04.generate_quantities(data=data, previous_fit=optimum_04)
 print(decode(gq_04.stan_variable('new_tokens')[0]))
+
+
+
+############################################################
+## 05: multi-head self-attention
+## PROMISING AS A MID POINT
+model_05 = CmdStanModel(stan_file=os.path.join('..', 'stan', '05-multi-headed-self-attention.stan'))
+
+vocab_size = len(set(text))   # total number of characters in the text
+batch_size = 32  # how many independent sequences will we process in parallel;  B
+block_size = 8   # what is the maximum context length for predictions?;         T
+n_embed = 32     # embedding size
+n_head = 2       # number of heads => head_size = n_embed / head_size
+
+xb, yb = get_data_batch(data_train, batch_size, block_size)
+xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+data = {
+    'vocab_size': vocab_size,
+    'batch_size': batch_size,
+    'block_size': block_size,
+    'n_embed': n_embed,
+    'n_head': n_head,
+    'xb': xb,
+    'yb': yb,
+    'xb_val': xb_val,
+    'yb_val': yb_val,
+    'max_new_tokens': 500
+}
+
+optimum_05 = model_05.optimize(data=data, show_console=True, iter=1, init_alpha=0.0001, algorithm="LBFGS", inits=0.1)
+for step in range(1000):
+    print("step = ", step)
+    xb, yb = get_data_batch(data_train, batch_size, block_size)
+    xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+    data['xb'] = xb
+    data['yb'] = yb
+    data['xb_val'] = xb_val
+    data['yb_val'] = yb_val
+    optimum_05 = model_05.optimize(data = data, show_console=(step % 100 == 0),
+                                   iter=1, init_alpha=0.0001, algorithm="LBFGS",
+                                   inits=optimum_05.stan_variables())
+
+print(optimum_05.stan_variable('loss'))
+print(optimum_05.stan_variable('loss_validation'))
+
+print(decode(optimum_05.stan_variable('new_tokens')))
+
+gq_05 = model_05.generate_quantities(data=data, previous_fit=optimum_05)
+print(decode(gq_05.stan_variable('new_tokens')[0]))
+
+
+
+############################################################
+## 06: feed forward
+model_06 = CmdStanModel(stan_file=os.path.join('..', 'stan', '06-feed-forward.stan'))
+
+vocab_size = len(set(text))   # total number of characters in the text
+batch_size = 32  # how many independent sequences will we process in parallel;  B
+block_size = 8   # what is the maximum context length for predictions?;         T
+n_embed = 32     # embedding size
+n_head = 2       # number of heads => head_size = n_embed / head_size
+
+xb, yb = get_data_batch(data_train, batch_size, block_size)
+xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+data = {
+    'vocab_size': vocab_size,
+    'batch_size': batch_size,
+    'block_size': block_size,
+    'n_embed': n_embed,
+    'n_head': n_head,
+    'xb': xb,
+    'yb': yb,
+    'xb_val': xb_val,
+    'yb_val': yb_val,
+    'max_new_tokens': 500
+}
+
+optimum_06 = model_06.optimize(data=data, show_console=True, iter=1, init_alpha=0.0001, algorithm="LBFGS", inits=0.1)
+for step in range(1000):
+    print("step = ", step)
+    xb, yb = get_data_batch(data_train, batch_size, block_size)
+    xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+    data['xb'] = xb
+    data['yb'] = yb
+    data['xb_val'] = xb_val
+    data['yb_val'] = yb_val
+    optimum_06 = model_06.optimize(data = data, show_console=(step % 100 == 0),
+                                   iter=1, init_alpha=0.0001, algorithm="LBFGS",
+                                   inits=optimum_06.stan_variables())
+
+print(optimum_06.stan_variable('loss'))
+print(optimum_06.stan_variable('loss_validation'))
+
+print(decode(optimum_06.stan_variable('new_tokens')))
+
+gq_06 = model_06.generate_quantities(data=data, previous_fit=optimum_06)
+print(decode(gq_06.stan_variable('new_tokens')[0]))
+
+
 
