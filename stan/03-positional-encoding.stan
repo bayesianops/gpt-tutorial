@@ -25,11 +25,17 @@ parameters {
   array[block_size] vector[n_embed] position_embedding;     // 03 - new parameter
 }
 transformed parameters {
+  array[batch_size, block_size] vector[n_embed] x;
+  for (b in 1:batch_size) {
+    for (t in 1:block_size) {
+      x[b, t] = token_embedding[xb[b, t]] + position_embedding[t];
+    }
+  }
+  
   real loss = 0;  
   for (b in 1:batch_size) {
     for (t in 1:block_size) {
-      vector[n_embed] x = token_embedding[xb[b, t]] + position_embedding[t];
-      vector[vocab_size] logits = lm_head(x, lm_head_multiplier, lm_head_offset);
+      vector[vocab_size] logits = lm_head(x[b, t], lm_head_multiplier, lm_head_offset);
       
       loss += categorical_logit_lpmf(yb[b, t] | logits);
     }
@@ -40,11 +46,17 @@ model {
   target += loss;
 }
 generated quantities {
+  array[batch_size, block_size] vector[n_embed] x_val;
+  for (b in 1:batch_size) {
+    for (t in 1:block_size) {
+      x_val[b, t] = token_embedding[xb_val[b, t]] + position_embedding[t];
+    }
+  }
+  
   real loss_validation = 0;
   for (b in 1:batch_size) {
     for (t in 1:block_size) {
-      vector[n_embed] x = token_embedding[xb_val[b, t]] + position_embedding[t];
-      vector[vocab_size] logits = lm_head(x, lm_head_multiplier, lm_head_offset);
+      vector[vocab_size] logits = lm_head(x_val[b, t], lm_head_multiplier, lm_head_offset);
 
       loss_validation += categorical_logit_lpmf(yb_val[b, t] | logits);
     }
@@ -58,8 +70,8 @@ generated quantities {
   array[max_new_tokens] int<lower = 1, upper = vocab_size> new_tokens;
   new_tokens[1] = 1;
   for (n in 2:max_new_tokens) {
-    vector[n_embed] x = token_embedding[new_tokens[n - 1]] + position_embedding[min(n - 1, block_size)];
-    vector[vocab_size] logits = lm_head(x, lm_head_multiplier, lm_head_offset);
+    vector[n_embed] x_new = token_embedding[new_tokens[n - 1]] + position_embedding[min(n - 1, block_size)];
+    vector[vocab_size] logits = lm_head(x_new, lm_head_multiplier, lm_head_offset);
     new_tokens[n] = categorical_logit_rng(logits);
   }
 }

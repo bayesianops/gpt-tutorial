@@ -101,6 +101,9 @@ if (verbose):
 
 ############################################################
 ## 01: bigram model
+##     Only look at the last character to predict the next character.
+##     Look at how to compute loss
+##     Look at optimization
 model_01 = CmdStanModel(stan_file=os.path.join('..', 'stan', '01-bigram.stan'))
 
 
@@ -162,6 +165,8 @@ print(decode(gq_01.stan_variable('new_tokens')[0]))
 
 ############################################################
 ## 02: embedding
+##     Instead of directly using logits of vocab_size, estimate a vector of size n_embed (> vocab_size)
+##     To get it back to vocab_size, matrix multiply
 model_02 = CmdStanModel(stan_file=os.path.join('..', 'stan', '02-different-embedding-size.stan'))
 
 vocab_size = len(set(text))   # total number of characters in the text
@@ -208,7 +213,7 @@ print(decode(gq_02.stan_variable('new_tokens')[0]))
 
 ############################################################
 ## 03: position encoding
-##     Use positional encoding.
+##     Use positional encoding. Acts as an "intercept" on the logit scale for each position in block_size.
 ##     Only uses the last character; take a look at the generation code
 model_03 = CmdStanModel(stan_file=os.path.join('..', 'stan', '03-positional-encoding.stan'))
 
@@ -231,7 +236,7 @@ data = {
     'max_new_tokens': 500
 }
 
-optimum_03 = model_03.optimize(data=data, show_console=True, iter=1, init_alpha=0.0001, algorithm="LBFGS", init=0.1)
+optimum_03 = model_03.optimize(data=data, show_console=True, iter=1, init_alpha=0.0001, algorithm="LBFGS", inits=0.1)
 
 for step in range(1000):
     print("step = ", step)
@@ -253,3 +258,51 @@ print(decode(optimum_03.stan_variable('new_tokens')))
 gq_03 = model_03.generate_quantities(data=data, previous_fit=optimum_03)
 print(decode(gq_03.stan_variable('new_tokens')[0]))
                         
+
+############################################################
+## 04: self-attention
+
+model_04 = CmdStanModel(stan_file=os.path.join('..', 'stan', '04-self-attention.stan'))
+
+vocab_size = len(set(text))   # total number of characters in the text
+batch_size = 32  # how many independent sequences will we process in parallel;  B
+block_size = 8   # what is the maximum context length for predictions?;         T
+n_embed = 32     # embedding size
+n_head = 32      # self attention head size
+
+xb, yb = get_data_batch(data_train, batch_size, block_size)
+xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+data = {
+    'vocab_size': vocab_size,
+    'batch_size': batch_size,
+    'block_size': block_size,
+    'n_embed': n_embed,
+    'n_head': n_head,
+    'xb': xb,
+    'yb': yb,
+    'xb_val': xb_val,
+    'yb_val': yb_val,
+    'max_new_tokens': 500
+}
+
+optimum_04 = model_04.optimize(data=data, show_console=True, iter=1, init_alpha=0.0001, algorithm="LBFGS", inits=0.1)
+for step in range(1000):
+    print("step = ", step)
+    xb, yb = get_data_batch(data_train, batch_size, block_size)
+    xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+    data['xb'] = xb
+    data['yb'] = yb
+    data['xb_val'] = xb_val
+    data['yb_val'] = yb_val
+    optimum_04 = model_04.optimize(data = data, show_console=(step % 100 == 0),
+                                   iter=1, init_alpha=0.0001, algorithm="LBFGS",
+                                   inits=optimum_04.stan_variables())
+
+print(optimum_04.stan_variable('loss'))
+print(optimum_04.stan_variable('loss_validation'))   
+    
+print(decode(optimum_04.stan_variable('new_tokens')))
+
+gq_04 = model_04.generate_quantities(data=data, previous_fit=optimum_04)
+print(decode(gq_04.stan_variable('new_tokens')[0]))
+

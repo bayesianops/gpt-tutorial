@@ -52,7 +52,7 @@ generated quantities {
   array[max_new_tokens] int<lower = 1, upper = vocab_size> new_tokens;
   new_tokens[1] = 1;
   for (n in 2:max_new_tokens) {
-    vector[vocab_size] logits = lm_head(token_embedding[new_tokens[n - 1]], lm_head_multiplier, lm_head_offset)
+    vector[vocab_size] logits = lm_head(token_embedding[new_tokens[n - 1]], lm_head_multiplier, lm_head_offset);
     new_tokens[n] = categorical_logit_rng(logits);
   }
 }
