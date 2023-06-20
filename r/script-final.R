@@ -86,3 +86,11 @@ data = list(
 )
 
 optimum_01 = model_01$optimize(data=data, algorithm="lbfgs")
+
+optimum_01$draws('loss')
+optimum_01$draws('loss_validation')
+cat(paste(decode(as.numeric(optimum_07$draws('new_tokens'))), collapse=""))
+
+
+gq_01 = model_01$generate_quantities(data = data, fitted_params = optimum_01$draws())
+cat(paste(decode(as.numeric(gq_01$draws('new_tokens'))), collapse=""))
