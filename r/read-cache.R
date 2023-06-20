@@ -40,12 +40,22 @@ data_train = data_full[1:n]
 data_val = data_full[(n + 1): length(data_full)]
 
 
+model_07 = cmdstan_model("../stan/07-skip-connections.stan")
 
 data = jsonlite::fromJSON('../cache/model_07_data.json')
 
 optimum_07 = cmdstanr::as_cmdstan_fit('../cache/07-skip-connections.csv')
 
 cat(paste(decode(as.numeric(optimum_07$draws('new_tokens'))), collapse=""))
+
+
+
+gq_07 = model_07$generate_quantities(data = data, fitted_params = optimum_07$draws())
+
+print("Newly generated tokens")
+print("************************************************************")
+cat(paste(decode(as.numeric(gq_07$draws('new_tokens'))), collapse=""))
+print("************************************************************")
 
 
 
