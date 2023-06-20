@@ -597,3 +597,107 @@ gq_10 = model_10.generate_quantities(data=data, previous_fit=optimum_10)
 print(decode(gq_10.stan_variable('new_tokens')[0]))
 
 
+############################################################
+## 11: dropout
+model_11 = CmdStanModel(stan_file=os.path.join('..', 'stan', '11-dropout.stan'))
+
+vocab_size = len(set(text))   # total number of characters in the text
+batch_size = 32  # how many independent sequences will we process in parallel;  B
+block_size = 8   # what is the maximum context length for predictions?;         T
+n_embed = 32     # embedding size
+n_head = 2       # number of heads => head_size = n_embed / head_size
+n_layer = 2      # number of transformer blocks
+dropout = 0.2    # proportion to drop out
+
+
+xb, yb = get_data_batch(data_train, batch_size, block_size)
+xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+data = {
+    'vocab_size': vocab_size,
+    'batch_size': batch_size,
+    'block_size': block_size,
+    'n_embed': n_embed,
+    'n_head': n_head,
+    'n_layer': n_layer,
+    'dropout': dropout,
+    'xb': xb,
+    'yb': yb,
+    'xb_val': xb_val,
+    'yb_val': yb_val,
+    'max_new_tokens': 500
+}
+
+optimum_11 = model_11.optimize(data=data, show_console=True, iter=1, init_alpha=0.0001, algorithm="LBFGS", inits=0.1)
+for step in range(1000):
+    print("step = ", step)
+    xb, yb = get_data_batch(data_train, batch_size, block_size)
+    xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+    data['xb'] = xb
+    data['yb'] = yb
+    data['xb_val'] = xb_val
+    data['yb_val'] = yb_val
+    optimum_11 = model_11.optimize(data = data, show_console=(step % 100 == 0),
+                                   iter=1, init_alpha=0.0001, algorithm="LBFGS",
+                                   inits=optimum_11.stan_variables())
+
+print(optimum_11.stan_variable('loss'))
+print(optimum_11.stan_variable('loss_validation'))
+
+print(decode(optimum_11.stan_variable('new_tokens')))
+
+gq_11 = model_11.generate_quantities(data=data, previous_fit=optimum_11)
+print(decode(gq_11.stan_variable('new_tokens')[0]))
+
+
+############################################################
+## 12: final - projection
+model_12 = CmdStanModel(stan_file=os.path.join('..', 'stan', '12-final.stan'))
+
+vocab_size = len(set(text))   # total number of characters in the text
+batch_size = 32  # how many independent sequences will we process in parallel;  B
+block_size = 8   # what is the maximum context length for predictions?;         T
+n_embed = 32     # embedding size
+n_head = 2       # number of heads => head_size = n_embed / head_size
+n_layer = 2      # number of transformer blocks
+dropout = 0.2    # proportion to drop out
+
+
+xb, yb = get_data_batch(data_train, batch_size, block_size)
+xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+data = {
+    'vocab_size': vocab_size,
+    'batch_size': batch_size,
+    'block_size': block_size,
+    'n_embed': n_embed,
+    'n_head': n_head,
+    'n_layer': n_layer,
+    'dropout': dropout,
+    'xb': xb,
+    'yb': yb,
+    'xb_val': xb_val,
+    'yb_val': yb_val,
+    'max_new_tokens': 500
+}
+
+optimum_12 = model_12.optimize(data=data, show_console=True, iter=1, init_alpha=0.0001, algorithm="LBFGS", inits=0.1)
+for step in range(1000):
+    print("step = ", step)
+    xb, yb = get_data_batch(data_train, batch_size, block_size)
+    xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+    data['xb'] = xb
+    data['yb'] = yb
+    data['xb_val'] = xb_val
+    data['yb_val'] = yb_val
+    optimum_12 = model_12.optimize(data = data, show_console=(step % 100 == 0),
+                                   iter=1, init_alpha=0.0001, algorithm="LBFGS",
+                                   inits=optimum_12.stan_variables())
+
+print(optimum_12.stan_variable('loss'))
+print(optimum_12.stan_variable('loss_validation'))
+
+print(decode(optimum_12.stan_variable('new_tokens')))
+
+gq_12 = model_12.generate_quantities(data=data, previous_fit=optimum_12)
+print(decode(gq_12.stan_variable('new_tokens')[0]))
+
+
