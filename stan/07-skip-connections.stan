@@ -131,7 +131,7 @@ transformed parameters {
   }
 
   real loss = 0;
-  for (b in 1:block_size) {
+  for (b in 1:batch_size) {
     for (t in 1:block_size) {
       vector[vocab_size] logits = lm_head(x[b, t], lm_head_multiplier, lm_head_offset);
       loss += categorical_logit_lpmf(yb[b, t] | logits);
