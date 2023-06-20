@@ -309,7 +309,6 @@ print(decode(gq_04.stan_variable('new_tokens')[0]))
 
 ############################################################
 ## 05: multi-head self-attention
-## PROMISING AS A MID POINT
 model_05 = CmdStanModel(stan_file=os.path.join('..', 'stan', '05-multi-headed-self-attention.stan'))
 
 vocab_size = len(set(text))   # total number of characters in the text
@@ -405,3 +404,51 @@ print(decode(gq_06.stan_variable('new_tokens')[0]))
 
 
 ############################################################
+## 07: skip connections
+##     Math trick to have gradients work through
+## PROMISING AS A MID POINT
+model_07 = CmdStanModel(stan_file=os.path.join('..', 'stan', '07-skip-connections.stan'))
+
+vocab_size = len(set(text))   # total number of characters in the text
+batch_size = 32  # how many independent sequences will we process in parallel;  B
+block_size = 8   # what is the maximum context length for predictions?;         T
+n_embed = 32     # embedding size
+n_head = 2       # number of heads => head_size = n_embed / head_size
+
+xb, yb = get_data_batch(data_train, batch_size, block_size)
+xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+data = {
+    'vocab_size': vocab_size,
+    'batch_size': batch_size,
+    'block_size': block_size,
+    'n_embed': n_embed,
+    'n_head': n_head,
+    'xb': xb,
+    'yb': yb,
+    'xb_val': xb_val,
+    'yb_val': yb_val,
+    'max_new_tokens': 500
+}
+
+optimum_07 = model_07.optimize(data=data, show_console=True, iter=1, init_alpha=0.0001, algorithm="LBFGS", inits=0.1)
+for step in range(1000):
+    print("step = ", step)
+    xb, yb = get_data_batch(data_train, batch_size, block_size)
+    xb_val, yb_val = get_data_batch(data_val, batch_size, block_size)
+    data['xb'] = xb
+    data['yb'] = yb
+    data['xb_val'] = xb_val
+    data['yb_val'] = yb_val
+    optimum_07 = model_07.optimize(data = data, show_console=(step % 100 == 0),
+                                   iter=1, init_alpha=0.0001, algorithm="LBFGS",
+                                   inits=optimum_07.stan_variables())
+
+print(optimum_07.stan_variable('loss'))
+print(optimum_07.stan_variable('loss_validation'))
+
+print(decode(optimum_07.stan_variable('new_tokens')))
+
+gq_07 = model_07.generate_quantities(data=data, previous_fit=optimum_07)
+print(decode(gq_07.stan_variable('new_tokens')[0]))
+
+
