@@ -25,8 +25,8 @@ encoder_decoder_1_indexed <- function(text) {
 
 get_data_batch <- function(data, batch_size, block_size) {
     idx = sample(1:(length(data) - block_size), batch_size, replace=TRUE)
-    x = lapply(idx, function(i) {data[i:(i+block_size)]})
-    y = lapply(idx, function(i) {data[(i+1):(i+block_size+1)]})
+    x = do.call(rbind, lapply(idx, function(i) {data[i:(i+block_size-1)]}))
+    y = do.call(rbind, lapply(idx, function(i) {data[(i+1):(i+block_size)]}))
     return(list(x = x, y = y))
 }
 
@@ -62,6 +62,27 @@ yb_val = val$y
 
 model_01 = cmdstan_model("../stan/01-bigram.stan")
 
+vocab_size = 65   # total number of characters in the text
+batch_size = 32  # how many independent sequences will we process in parallel;  B
+block_size = 8   # what is the maximum context length for predictions?;         T
+
+train = get_data_batch(data_train, batch_size, block_size)
+xb = train$x
+yb = train$y
+
+val = get_data_batch(data_val, batch_size, block_size)
+xb_val = val$x
+yb_val = val$y
+
 data = list(
-    
+    vocab_size = vocab_size,
+    batch_size = batch_size,
+    block_size = block_size,
+    xb = xb,
+    yb = yb,
+    xb_val = xb_val,
+    yb_val = yb_val,
+    max_new_tokens = 500
 )
+
+optimum_01 = model_01$optimize(data=data, algorithm="lbfgs")
